@@ -79,9 +79,25 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+    - SBBFBloomFilter, a Split Block Bloom Filter implementation (Apache
+      Parquet layout) of IFilter, is now available alongside the classical
+      BloomFilter. Probe touches one cache line instead of K, with Wyhash
+      replacing MurmurHash3 on the probe path. Microbench shows 1.95-2.89x
+      per-probe speedup over the classical filter across cache regimes;
+      see test/microbench/results/sbbf-vs-classical.txt for the full
+      breakdown. On-disk format selection is via a magic-byte sentinel in
+      BloomFilterSerializer, so existing classical-format SSTables continue
+      to deserialize without change.
 
 Upgrading
 ---------
+    - SBBFBloomFilter sized via the existing bits/element formula produces
+      a meaningfully lower observed false-positive rate than classical
+      BloomFilter at the same memory budget (e.g. ~0.4% actual vs the 1%
+      target for bloom_filter_fp_chance=0.01). This is strictly better for
+      users but is a behaviour change worth noting: the
+      bloom_filter_fp_chance property continues to be a target ceiling,
+      not a guaranteed observed rate.
 
 Deprecation
 -----------

@@ -224,7 +224,7 @@ public class BloomFilterTest
         filter.close();
 
         FileInputStreamPlus in = file.newInputStream();
-        BloomFilter filter2 = BloomFilterSerializer.forVersion(false).deserialize(in);
+        BloomFilter filter2 = (BloomFilter) BloomFilterSerializer.forVersion(false).deserialize(in);
         Assert.assertTrue(filter2.isPresent(FilterTestHelper.wrap(test)));
         FileUtils.closeQuietly(in);
         filter2.close();

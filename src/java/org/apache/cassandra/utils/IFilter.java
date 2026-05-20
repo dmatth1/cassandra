@@ -37,6 +37,22 @@ public interface IFilter extends SharedCloseable
             filterHash(dest);
             return (short) dest[1];
         }
+
+        /**
+         * One 64-bit hash of the key, used by the SBBF probe path.
+         * Implementations are free to use a different hash function from
+         * {@link #filterHash(long[])} (which is contractually
+         * Murmur3-x64-128); SBBF uses Wyhash, which is ~3x cheaper on
+         * 16-byte keys. The default falls back to the high half of
+         * {@code filterHash} so any FilterKey impl that does not
+         * specialise still works correctly.
+         */
+        default long filterHash64()
+        {
+            long[] dest = new long[2];
+            filterHash(dest);
+            return dest[0];
+        }
     }
 
     void add(FilterKey key);

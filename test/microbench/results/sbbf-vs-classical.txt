@@ -1,0 +1,33 @@
+SBBFBloomFilter vs classical BloomFilter
+========================================
+
+Host: virtualised Intel Xeon, OpenJDK 21.0.10. Both filters sized at 1% FP.
+
+Run with:
+  test/bin/jmh -wi 3 -i 5 -w 2 -r 2 -f 3 \
+    -p tier=S,M,L,XL -p workload=miss,hit -p impl=sbbf,classical \
+    SBBFBloomFilterBench
+
+JMH AverageTime, ns/op, 3 forks x 5 measurement iterations averaged:
+
+| Tier | Workload | Classical       | SBBF            | Speedup |
+|------|----------|----------------:|----------------:|--------:|
+| S    | miss     |  56.41 +- 0.57  |  24.85 +- 0.27  | 2.27x   |
+| S    | hit      |  54.70 +- 0.56  |  23.93 +- 0.27  | 2.29x   |
+| M    | miss     |  60.25 +- 0.71  |  27.89 +- 0.63  | 2.16x   |
+| M    | hit      |  57.80 +- 0.97  |  26.53 +- 0.28  | 2.18x   |
+| L    | miss     |  67.23 +- 1.54  |  23.14 +- 0.62  | 2.91x   |
+| L    | hit      |  89.83 +- 2.37  |  45.90 +- 1.14  | 1.96x   |
+| XL   | miss     |  83.18 +- 1.42  |  30.88 +- 0.67  | 2.69x   |
+| XL   | hit      | 232.30 +- 5.62  |  99.43 +- 4.64  | 2.34x   |
+
+Tiers (filter footprint):
+  S  = 16K elems   (~128 KB, in L2)
+  M  = 256K elems  (~2 MB, in L3)
+  L  = 4.2M elems  (~32 MB, around L3)
+  XL = 67M elems   (~512 MB, in DRAM)
+
+Allocation profile (jmh -prof gc): gc.alloc.rate.norm 0.002 B/op for
+sbbf XL hit -- effectively zero, confirming the hot path is allocation
+free (byte[]-as-long VarHandle reads, no scratch buffer on the
+DecoratedKey fast path).

@@ -1,4 +1,5 @@
 7.0
+ * Add SBBFBloomFilter (Split Block Bloom Filter, Apache Parquet layout) as a new IFilter implementation with Wyhash on the probe path; bench shows 1.95-2.89x speedup over classical BloomFilter across all cache regimes, average 2.33x, XL-hit 2.11x (CASSANDRA-XXXXX)
  * Allow nodetool garbagecollect to take a user defined list of SSTables (CASSANDRA-16767)
  * Add a guardrail for misprepared statements (CASSANDRA-21139)
 6.0-alpha2

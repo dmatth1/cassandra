@@ -26,14 +26,23 @@ import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.utils.obs.IBitSet;
 import org.apache.cassandra.utils.obs.OffHeapBitSet;
 
-public final class BloomFilterSerializer implements IGenericSerializer<BloomFilter, DataInputStreamPlus, DataOutputStreamPlus>
+public final class BloomFilterSerializer implements IGenericSerializer<IFilter, DataInputStreamPlus, DataOutputStreamPlus>
 {
+    /**
+     * Magic int marking the start of a {@link SBBFBloomFilter} on disk.
+     * Classical {@link BloomFilter} writes its <code>hashCount</code>
+     * (always a small positive int) as the first int. Any negative int
+     * in that slot is therefore unambiguously the SBBF dispatch marker;
+     * existing on-disk files never collide with it.
+     */
+    static final int SBBF_MAGIC = 0xCA555BBF;
+
     public final static BloomFilterSerializer newFormatInstance = new BloomFilterSerializer(false);
     public final static BloomFilterSerializer oldFormatInstance = new BloomFilterSerializer(true);
 
     private final boolean oldFormat;
 
-    private <T> BloomFilterSerializer(boolean oldFormat)
+    private BloomFilterSerializer(boolean oldFormat)
     {
         this.oldFormat = oldFormat;
     }
@@ -47,34 +56,45 @@ public final class BloomFilterSerializer implements IGenericSerializer<BloomFilt
     }
 
     @Override
-    public void serialize(BloomFilter bf, DataOutputStreamPlus out) throws IOException
+    public void serialize(IFilter f, DataOutputStreamPlus out) throws IOException
     {
         assert !oldFormat : "Filter should not be serialized in old format";
+        if (f instanceof SBBFBloomFilter)
+        {
+            f.serialize(out, false);
+            return;
+        }
+        if (!(f instanceof BloomFilter))
+            throw new IOException("Unknown filter type: " + (f == null ? "null" : f.getClass().getName()));
+        BloomFilter bf = (BloomFilter) f;
         out.writeInt(bf.hashCount);
         bf.bitset.serialize(out);
     }
 
-    /**
-     * Calculates a serialized size of the given Bloom Filter
-     *
-     * @param bf Bloom filter to calculate serialized size
-     * @return serialized size of the given bloom filter
-     * @see org.apache.cassandra.io.ISerializer#serialize(Object, org.apache.cassandra.io.util.DataOutputPlus)
-     */
     @Override
-    public long serializedSize(BloomFilter bf)
+    public long serializedSize(IFilter f)
     {
-        int size = TypeSizes.sizeof(bf.hashCount); // hash count
+        if (f instanceof SBBFBloomFilter)
+            return f.serializedSize(false);
+        BloomFilter bf = (BloomFilter) f;
+        int size = TypeSizes.sizeof(bf.hashCount);
         size += bf.bitset.serializedSize();
         return size;
     }
 
     @Override
-    public BloomFilter deserialize(DataInputStreamPlus in) throws IOException
+    public IFilter deserialize(DataInputStreamPlus in) throws IOException
     {
-        int hashes = in.readInt();
+        int first = in.readInt();
+        if (first == SBBF_MAGIC)
+        {
+            if (oldFormat)
+                throw new IOException("SBBF filter present on the legacy (oldBf) format path, which cannot carry it");
+            return SBBFBloomFilter.deserializeAfterMagic(in);
+        }
+        // Classical path: `first` is the hashCount; the bitset follows.
+        int hashes = first;
         IBitSet bs = OffHeapBitSet.deserialize(in, oldFormat);
-
         return new BloomFilter(hashes, bs);
     }
 }

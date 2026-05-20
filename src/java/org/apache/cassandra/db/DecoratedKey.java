@@ -32,6 +32,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.IFilter.FilterKey;
 import org.apache.cassandra.utils.MurmurHash;
+import org.apache.cassandra.utils.Wyhash;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
@@ -222,6 +223,13 @@ public abstract class DecoratedKey implements PartitionPosition, FilterKey
     {
         ByteBuffer key = getKey();
         MurmurHash.hash3_x64_128(key, key.position(), key.remaining(), 0, dest);
+    }
+
+    @Override
+    public long filterHash64()
+    {
+        ByteBuffer key = getKey();
+        return Wyhash.hash(key, key.position(), key.remaining(), Wyhash.SEED);
     }
 
     /**
